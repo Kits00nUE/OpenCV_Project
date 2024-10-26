@@ -3,6 +3,12 @@ from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QPushButton, QLabel, QVBoxLayout, QWidget,
     QHBoxLayout, QStackedWidget, QFrame, QGridLayout, QLineEdit, QComboBox, QCheckBox
 )
+from PyQt5.QtCore import Qt, QSize  # Include QSize here
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QPushButton, QStackedWidget
+from PyQt5.QtGui import QPixmap, QIcon, QFont
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QSizePolicy
+import mediapipe as mp
 from PyQt5.QtGui import QFont, QIcon, QPixmap, QImage
 from PyQt5.QtCore import Qt
 import cv2
@@ -15,26 +21,29 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Access Control Application")
         self.setGeometry(200, 100, 1200, 800)  # Increased window size
         self.setStyleSheet("background-color: #3B4252;")  # Background color
-
-        # Application icon (replace with path to your icon)
         self.setWindowIcon(QIcon("assets/faceid.png"))
 
         # Initialize the main interface
         self.initUI()
+
+        # Initialize MediaPipe Hands
+        self.mp_hands = mp.solutions.hands
+        self.hands = self.mp_hands.Hands(static_image_mode=False, max_num_hands=1, min_detection_confidence=0.7)
+        self.mp_drawing = mp.solutions.drawing_utils
+
+        # Initialize video capture for face recognition and gesture authentication
+        self.video_capture = cv2.VideoCapture(0)
+
     def initUI(self):
-        # Main layout elements
         main_layout = QVBoxLayout()
         central_widget = QWidget()
         central_widget.setLayout(main_layout)
         self.setCentralWidget(central_widget)
 
-        # Top section with title and logo
         top_layout = QHBoxLayout()
         top_frame = QFrame()
         top_frame.setLayout(top_layout)
         top_frame.setStyleSheet("background-color: #2E3440; padding: 10px; border-radius: 10px;")
-
-
 
         title_label = QLabel("Access Control Application")
         title_label.setFont(QFont("Arial", 28, QFont.Bold))
@@ -43,20 +52,15 @@ class MainWindow(QMainWindow):
 
         main_layout.addWidget(top_frame)
 
-        # Adding a stacked widget to change window content
         self.stacked_widget = QStackedWidget()
         main_layout.addWidget(self.stacked_widget)
 
-        # Creating different views
         self.create_home_view()
         self.create_face_recognition_view()
         self.create_access_files_view()
-        self.create_quiz_view()
         self.create_settings_view()
         self.create_gesture_authentication_view()
 
-        # Creating navigation bar
-        self.create_navigation_bar(main_layout)
     def create_home_view(self):
         home_widget = QWidget()
         home_layout = QVBoxLayout()
@@ -65,7 +69,7 @@ class MainWindow(QMainWindow):
 
         # Adding background image
         background_label = QLabel()
-        background_pixmap = QPixmap("assets/face-recognition.png")  # Replace with your image path
+        background_pixmap = QPixmap("assets/ai_gen.webp")  # Replace with your image path
         background_label.setPixmap(background_pixmap.scaled(1000, 500, Qt.KeepAspectRatio))
         background_label.setAlignment(Qt.AlignCenter)
         home_layout.addWidget(background_label)
@@ -80,38 +84,45 @@ class MainWindow(QMainWindow):
         # Adding buttons
         button_font = QFont("Arial", 16)
 
-        button_container = QGridLayout()
-        button_container.setContentsMargins(50, 20, 50, 20)
+        # Create horizontal layout for Face Recognition and Gesture Authentication
+        special_button_layout = QHBoxLayout()
 
         self.face_recognition_button = QPushButton("Face Recognition")
         self.face_recognition_button.setFont(button_font)
         self.face_recognition_button.setStyleSheet(self.get_button_style())
-        self.face_recognition_button.setIcon(QIcon("assets/faceid.png.png"))
-        button_container.addWidget(self.face_recognition_button, 0, 0)
-
-        self.access_files_button = QPushButton("Access Files/Folders")
-        self.access_files_button.setFont(button_font)
-        self.access_files_button.setStyleSheet(self.get_button_style())
-        self.access_files_button.setIcon(QIcon("folder_icon.png"))
-        button_container.addWidget(self.access_files_button, 0, 1)
-
-        self.quiz_button = QPushButton("Quiz")
-        self.quiz_button.setFont(button_font)
-        self.quiz_button.setStyleSheet(self.get_button_style())
-        self.quiz_button.setIcon(QIcon("quiz_icon.png"))
-        button_container.addWidget(self.quiz_button, 1, 0)
-
-        self.settings_button = QPushButton("Settings")
-        self.settings_button.setFont(button_font)
-        self.settings_button.setStyleSheet(self.get_button_style())
-        self.settings_button.setIcon(QIcon("assets/settings.png"))
-        button_container.addWidget(self.settings_button, 1, 1)
+        self.face_recognition_button.setIcon(QIcon("assets/faceid.png"))
+        self.face_recognition_button.setIconSize(QSize(64, 64))
+        special_button_layout.addWidget(self.face_recognition_button)
 
         self.gesture_auth_button = QPushButton("Gesture Authentication")
         self.gesture_auth_button.setFont(button_font)
         self.gesture_auth_button.setStyleSheet(self.get_button_style())
-        self.gesture_auth_button.setIcon(QIcon("gesture_icon.png"))
-        button_container.addWidget(self.gesture_auth_button, 2, 0, 1, 2)
+        self.gesture_auth_button.setIcon(QIcon("assets/img.png"))
+        self.gesture_auth_button.setIconSize(QSize(64, 64))
+        special_button_layout.addWidget(self.gesture_auth_button)
+
+        # Add the special button layout to the main layout
+        home_layout.addLayout(special_button_layout)
+
+        # Create a separate grid layout for the other buttons
+        button_container = QGridLayout()
+        button_container.setContentsMargins(50, 20, 50, 20)
+
+        self.access_files_button = QPushButton("Access Files/Folders")
+        self.access_files_button.setFont(button_font)
+        self.access_files_button.setStyleSheet(self.get_button_style())
+        self.access_files_button.setIcon(QIcon("assets/img_1.png"))
+        self.access_files_button.setIconSize(QSize(50, 50))
+        button_container.addWidget(self.access_files_button, 0, 0)
+
+
+
+        self.settings_button = QPushButton("Settings")
+        self.settings_button.setFont(button_font)
+        self.settings_button.setStyleSheet(self.get_button_style())
+        self.settings_button.setIcon(QIcon("assets/img_2.png"))
+        self.settings_button.setIconSize(QSize(50, 50))
+        button_container.addWidget(self.settings_button, 1, 0)
 
         home_layout.addLayout(button_container)
 
@@ -121,70 +132,62 @@ class MainWindow(QMainWindow):
         # Button connections
         self.face_recognition_button.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(1))
         self.access_files_button.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(2))
-        self.quiz_button.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(3))
-        self.settings_button.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(4))
-        self.gesture_auth_button.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(5))
+        self.settings_button.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(3))
+        self.gesture_auth_button.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(4))
+
     def create_face_recognition_view(self):
         # Face recognition section
+
         recognition_widget = QWidget()
         layout = QVBoxLayout()
         recognition_widget.setLayout(layout)
+
+        label = QLabel("Face Recognition")
+        label.setFont(QFont("Arial", 24))
+        label.setStyleSheet("color: white;")
+        layout.addWidget(label, alignment=Qt.AlignCenter)
 
         self.video_label = QLabel("Face Recognition (Loading...)")
         self.video_label.setFont(QFont("Arial", 20))
         self.video_label.setStyleSheet("color: white;")
         layout.addWidget(self.video_label, alignment=Qt.AlignCenter)
 
-        # Initialize video capture
-        self.video_capture = cv2.VideoCapture(0)
-        if not self.video_capture.isOpened():
-            print("Error: Could not open video.")
-            return
-
-        # Timer to update video frames
-        self.timer = QTimer()
-        self.timer.timeout.connect(self.update_frame)
-        self.timer.start(20)  # Update every 20 milliseconds
-
+        # Timer to update video frames for face recognition
+        self.face_timer = QTimer()
+        self.face_timer.timeout.connect(self.update_face_frame)
+        self.face_timer.start(20)  # Update every 20 milliseconds
         back_button = QPushButton("Back to Home")
-        back_button.setFont(QFont("Arial", 20))  # Set larger font size
-        back_button.setStyleSheet(self.get_button_style())  # Apply your button style
+        back_button.setFont(QFont("Arial", 18))
+        back_button.setStyleSheet(self.get_button_style())
         back_button.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(0))
         layout.addWidget(back_button, alignment=Qt.AlignCenter)
 
-        # Add recognition_widget to the stacked widget
         self.stacked_widget.addWidget(recognition_widget)
 
-        # Add recognition_widget to the stacked widget
-        self.stacked_widget.addWidget(recognition_widget)
-    def update_frame(self):
-        # Capture frame-by-frame
+    def update_face_frame(self):
         ret, frame = self.video_capture.read()
-
         if not ret:
             print("Error: Could not read frame.")
             return
 
-        # Convert the frame to grayscale
         gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
-        # Load Haar Cascade classifier
         face_classifier = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
-
-        # Detect faces in the frame
         faces = face_classifier.detectMultiScale(gray_frame, scaleFactor=1.1, minNeighbors=5, minSize=(40, 40))
 
-        # Draw bounding boxes around detected faces
         for (x, y, w, h) in faces:
             cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
-        # Convert frame to QImage and set it to QLabel
         rgb_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         h, w, ch = rgb_image.shape
         bytes_per_line = ch * w
         q_image = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format_RGB888)
 
         self.video_label.setPixmap(QPixmap.fromImage(q_image))
+
+    def closeEvent(self, event):
+        # Stop video capture when closing the application
+        self.video_capture.release()
+        event.accept()
     def create_access_files_view(self):
         access_files_widget = QWidget()
         layout = QVBoxLayout()
@@ -210,7 +213,7 @@ class MainWindow(QMainWindow):
 
         # Back button
         back_button = QPushButton("Back to Home")
-        back_button.setFont(QFont("Arial", 16))
+        back_button.setFont(QFont("Arial", 18))
         back_button.setStyleSheet(self.get_button_style())
         back_button.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(0))
         layout.addWidget(back_button, alignment=Qt.AlignCenter)
@@ -221,26 +224,7 @@ class MainWindow(QMainWindow):
         file_path, _ = QFileDialog.getOpenFileName(self, "Select File", "", "All Files (*);;Text Files (*.txt);;Images (*.png *.jpg *.jpeg)")
         if file_path:
             print(f"Selected file: {file_path}")
-    def create_quiz_view(self):
-        quiz_widget = QWidget()
-        layout = QVBoxLayout()
-        quiz_widget.setLayout(layout)
 
-        label = QLabel("Quiz Section")
-        label.setFont(QFont("Arial", 24))
-        label.setStyleSheet("color: white;")
-        layout.addWidget(label, alignment=Qt.AlignCenter)
-
-        quiz_info = QLabel("Answer the quiz questions.")
-        quiz_info.setStyleSheet("color: white;")
-        layout.addWidget(quiz_info, alignment=Qt.AlignCenter)
-
-        # Back button
-        back_button = QPushButton("Back to Home")
-        back_button.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(0))
-        layout.addWidget(back_button, alignment=Qt.AlignCenter)
-
-        self.stacked_widget.addWidget(quiz_widget)
     def create_settings_view(self):
         settings_widget = QWidget()
         layout = QVBoxLayout()
@@ -303,7 +287,7 @@ class MainWindow(QMainWindow):
                 background-color: #A3BE8C;
             }
         """)
-        reset_button.setFont(QFont("Arial", 16))
+        reset_button.setFont(QFont("Arial", 18))
         layout.addWidget(reset_button, alignment=Qt.AlignCenter)
 
         # Back button
@@ -323,11 +307,12 @@ class MainWindow(QMainWindow):
                 background-color: #5E81AC;
             }
         """)
-        back_button.setFont(QFont("Arial", 16))
+        back_button.setFont(QFont("Arial", 18))
         back_button.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(0))
         layout.addWidget(back_button, alignment=Qt.AlignCenter)
 
         self.stacked_widget.addWidget(settings_widget)
+
     def create_gesture_authentication_view(self):
         gesture_widget = QWidget()
         layout = QVBoxLayout()
@@ -338,48 +323,61 @@ class MainWindow(QMainWindow):
         label.setStyleSheet("color: white;")
         layout.addWidget(label, alignment=Qt.AlignCenter)
 
-        gesture_info = QLabel("Authenticate using gestures.")
-        gesture_info.setStyleSheet("color: white;")
-        layout.addWidget(gesture_info, alignment=Qt.AlignCenter)
+        self.gesture_video_label = QLabel("Gesture Authentication (Loading...)")
+        self.gesture_video_label.setFont(QFont("Arial", 20))
+        self.gesture_video_label.setStyleSheet("color: white;")
+        layout.addWidget(self.gesture_video_label, alignment=Qt.AlignCenter)
+
+        # Timer to update video frames for gesture recognition
+        self.gesture_timer = QTimer()
+        self.gesture_timer.timeout.connect(self.update_gesture_frame)
+        self.gesture_timer.start(20)  # Update every 20 milliseconds
 
         # Back button
         back_button = QPushButton("Back to Home")
+        back_button.setFont(QFont("Arial", 18))
+        back_button.setStyleSheet(self.get_button_style())
         back_button.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(0))
         layout.addWidget(back_button, alignment=Qt.AlignCenter)
 
         self.stacked_widget.addWidget(gesture_widget)
-    def create_navigation_bar(self, main_layout):
-        nav_layout = QHBoxLayout()
 
-        home_button = QPushButton("Home")
-        home_button.setFont(QFont("Arial", 16))
-        home_button.setStyleSheet(self.get_nav_button_style())
-        home_button.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(0))
-        nav_layout.addWidget(home_button)
+    def update_gesture_frame(self):
+        ret, frame = self.video_capture.read()
+        if not ret:
+            print("Error: Could not read frame.")
+            return
 
+        frame = cv2.flip(frame, 1)  # Flip the frame horizontally
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        results = self.hands.process(rgb_frame)
 
+        finger_count = 0
+        if results.multi_hand_landmarks:
+            for hand_landmarks in results.multi_hand_landmarks:
+                self.mp_drawing.draw_landmarks(frame, hand_landmarks, self.mp_hands.HAND_CONNECTIONS)
 
-        files_button = QPushButton("Access Files")
-        files_button.setFont(QFont("Arial", 16))
-        files_button.setStyleSheet(self.get_nav_button_style())
-        files_button.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(2))
-        nav_layout.addWidget(files_button)
+                # List of landmark points for each finger's tip
+                tips = [4, 8, 12, 16, 20]  # Thumb tip, Index finger tip, etc.
 
+                # Check fingers
+                for tip in tips:
+                    finger_tip = hand_landmarks.landmark[tip]
+                    finger_dip = hand_landmarks.landmark[tip - 2]
+                    if finger_tip.y < finger_dip.y:  # Finger is raised
+                        finger_count += 1
 
+                # Display finger count
+                cv2.putText(frame, f'We see: {finger_count} finger(s)', (30, 50), cv2.FONT_HERSHEY_SIMPLEX, 1,
+                            (255, 0, 255), 2)
 
-        settings_button = QPushButton("Settings")
-        settings_button.setFont(QFont("Arial", 16))
-        settings_button.setStyleSheet(self.get_nav_button_style())
-        settings_button.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(4))
-        nav_layout.addWidget(settings_button)
+        # Convert frame to QImage and set it to QLabel
+        rgb_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        h, w, ch = rgb_image.shape
+        bytes_per_line = ch * w
+        q_image = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format_RGB888)
 
-        gesture_button = QPushButton("Gesture Auth")
-        gesture_button.setFont(QFont("Arial", 16))
-        gesture_button.setStyleSheet(self.get_nav_button_style())
-        gesture_button.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(5))
-        nav_layout.addWidget(gesture_button)
-
-        main_layout.addLayout(nav_layout)
+        self.gesture_video_label.setPixmap(QPixmap.fromImage(q_image))
     def get_button_style(self):
         return """
         QPushButton {
@@ -396,22 +394,7 @@ class MainWindow(QMainWindow):
             background-color: #5E81AC;
         }
         """
-    def get_nav_button_style(self):
-        return """
-        QPushButton {
-            background-color: #4C566A;
-            color: white;
-            border: none;
-            padding: 10px;
-            margin: 5px;
-        }
-        QPushButton:hover {
-            background-color: #5E81AC;
-        }
-        QPushButton:pressed {
-            background-color: #3B4252;
-        }
-        """
+
 
 
 if __name__ == "__main__":
