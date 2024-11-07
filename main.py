@@ -359,15 +359,32 @@ class MainWindow(QMainWindow):
 
                 # List of landmark points for each finger's tip
                 tips = [4, 8, 12, 16, 20]  # Thumb tip, Index finger tip, etc.
+                finger_states = [False] * 5  # States for each finger (True if raised)
 
-                # Check fingers
-                for tip in tips:
-                    finger_tip = hand_landmarks.landmark[tip]
-                    finger_dip = hand_landmarks.landmark[tip - 2]
+                # Check thumb separately due to its unique orientation
+                thumb_tip = hand_landmarks.landmark[tips[0]]
+                thumb_ip = hand_landmarks.landmark[2]  # Joint 2 as reference
+                wrist = hand_landmarks.landmark[0]
+
+                # Check if thumb is to the left or right of the wrist (depends on hand orientation)
+                if thumb_tip.x < wrist.x:  # Right hand
+                    if thumb_tip.x < thumb_ip.x:
+                        finger_states[0] = True  # Thumb raised
+                else:  # Left hand
+                    if thumb_tip.x > thumb_ip.x:
+                        finger_states[0] = True  # Thumb raised
+
+                # Check other fingers based on tip and dip (fingers raised if tip above dip)
+                for i in range(1, 5):
+                    finger_tip = hand_landmarks.landmark[tips[i]]
+                    finger_dip = hand_landmarks.landmark[tips[i] - 2]
                     if finger_tip.y < finger_dip.y:  # Finger is raised
-                        finger_count += 1
+                        finger_states[i] = True
 
-                # Display finger count
+                # Count raised fingers
+                finger_count = sum(finger_states)
+
+                # Display finger count on the frame
                 cv2.putText(frame, f'We see: {finger_count} finger(s)', (30, 50), cv2.FONT_HERSHEY_SIMPLEX, 1,
                             (255, 0, 255), 2)
 
@@ -378,6 +395,7 @@ class MainWindow(QMainWindow):
         q_image = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format_RGB888)
 
         self.gesture_video_label.setPixmap(QPixmap.fromImage(q_image))
+
     def get_button_style(self):
         return """
         QPushButton {
