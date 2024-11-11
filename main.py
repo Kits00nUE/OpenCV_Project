@@ -1,4 +1,5 @@
 import sys
+import mediapipe as mp
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QPushButton, QLabel, QVBoxLayout, QWidget,
     QHBoxLayout, QStackedWidget, QFrame, QGridLayout, QLineEdit, QComboBox, QCheckBox
@@ -8,7 +9,6 @@ from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QGr
 from PyQt5.QtGui import QPixmap, QIcon, QFont
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QSizePolicy
-import mediapipe as mp
 from PyQt5.QtGui import QFont, QIcon, QPixmap, QImage
 from PyQt5.QtCore import Qt
 import cv2
