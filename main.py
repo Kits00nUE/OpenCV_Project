@@ -473,9 +473,6 @@ class MainWindow(QMainWindow):
             background-color: #5E81AC;
         }
         """
-
-
-
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = MainWindow()
