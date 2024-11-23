@@ -1,11 +1,12 @@
 import sys
+import mediapipe as mp
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QPushButton, QLabel, QVBoxLayout, QWidget,
     QHBoxLayout, QStackedWidget, QFrame, QGridLayout, QLineEdit, QComboBox, QCheckBox
 )
 from PyQt5.QtCore import Qt, QSize  # Include QSize here
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QPushButton, QStackedWidget
-import mediapipe as mp
+
 from PyQt5.QtGui import QFont, QIcon, QPixmap, QImage
 import cv2
 from PyQt5.QtCore import QTimer
@@ -13,6 +14,8 @@ from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QPu
 from PyQt5.QtGui import QFont, QPixmap
 from PyQt5.QtCore import Qt
 import os
+import time
+import random
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -80,19 +83,19 @@ class MainWindow(QMainWindow):
 
         special_button_layout = QHBoxLayout()
 
-        self.face_recognition_button = QPushButton("Face Recognition")
-        self.face_recognition_button.setFont(button_font)
-        self.face_recognition_button.setStyleSheet(self.get_button_style())
-        self.face_recognition_button.setIcon(QIcon("assets/faceid.png"))
-        self.face_recognition_button.setIconSize(QSize(64, 64))
-        special_button_layout.addWidget(self.face_recognition_button)
+        self.unlock_button = QPushButton("Unlock")
+        self.unlock_button.setFont(button_font)
+        self.unlock_button.setStyleSheet(self.get_button_style())
+        self.unlock_button.setIcon(QIcon("assets/faceid.png"))
+        self.unlock_button.setIconSize(QSize(64, 64))
+        special_button_layout.addWidget(self.unlock_button)
 
-        self.gesture_auth_button = QPushButton("Gesture Authentication")
-        self.gesture_auth_button.setFont(button_font)
-        self.gesture_auth_button.setStyleSheet(self.get_button_style())
-        self.gesture_auth_button.setIcon(QIcon("assets/img.png"))
-        self.gesture_auth_button.setIconSize(QSize(64, 64))
-        special_button_layout.addWidget(self.gesture_auth_button)
+        self.block_button = QPushButton("Block")
+        self.block_button.setFont(button_font)
+        self.block_button.setStyleSheet(self.get_button_style())
+        self.block_button.setIcon(QIcon("assets/img.png"))
+        self.block_button.setIconSize(QSize(64, 64))
+        special_button_layout.addWidget(self.block_button)
 
         home_layout.addLayout(special_button_layout)
 
@@ -117,13 +120,130 @@ class MainWindow(QMainWindow):
 
         self.stacked_widget.addWidget(home_widget)
 
-        self.face_recognition_button.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(1))
+        self.unlock_button.clicked.connect(self.start_unlock_process)
+        self.block_button.clicked.connect(self.block_function)
         self.access_files_button.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(2))
         self.settings_button.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(3))
-        self.gesture_auth_button.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(4))
+
+    def start_unlock_process(self):
+        print("Starting face recognition process")
+        self.stacked_widget.setCurrentIndex(1)
+        self.face_timer = QTimer()
+        self.face_timer.timeout.connect(self.check_face_recognition)
+        self.face_timer.start(20)  # Check every 20 milliseconds
+        self.face_recognition_start_time = time.time()
+
+    def check_face_recognition(self):
+        ret, frame = self.video_capture.read()
+        if not ret:
+            print("Error: Could not read frame.")
+            return
+
+        gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        face_classifier = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+        faces = face_classifier.detectMultiScale(gray_frame, scaleFactor=1.1, minNeighbors=5, minSize=(40, 40))
+
+        if len(faces) > 0:
+            print(f"Detected {len(faces)} face(s).")
+
+            # Narysowanie prostokąta wokół każdej wykrytej twarzy
+            for (x, y, w, h) in faces:
+                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+
+            # Sprawdzanie czasu detekcji twarzy
+            if time.time() - self.face_recognition_start_time >= 3:
+                print("Face recognized for 3 seconds")
+                self.face_timer.stop()
+
+                # Przejście do następnej części programu (liczenie palców)
+                self.stacked_widget.setCurrentIndex(4)
+                self.start_finger_counting()
+            else:
+                print(f"Face detected for {time.time() - self.face_recognition_start_time:.2f} seconds")
+        else:
+            print("No face detected. Resetting timer.")
+            self.face_recognition_start_time = time.time()
+
+        # Aktualizacja obrazu na ekranie
+        rgb_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        h, w, ch = rgb_image.shape
+        bytes_per_line = ch * w
+        q_image = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format_RGB888)
+
+        # Ustawienie nowego obrazu na QLabel, który wyświetla obraz z kamery
+        self.video_label.setPixmap(QPixmap.fromImage(q_image))
+
+
+
+    def start_finger_counting(self):
+        self.finger_count_timer = QTimer()
+        self.finger_count_timer.timeout.connect(self.check_finger_count)
+        self.finger_count_timer.start(20)  # Check every 20 milliseconds
+        self.finger_count_start_time = time.time()
+        self.target_finger_count = random.randint(1, 5)
+        self.show_finger_count_message()
+        self.finger_recognition_start_time = None
+
+    def show_finger_count_message(self):
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Show Fingers")
+        msg_box.setText(f"Please show {self.target_finger_count} fingers.")
+        msg_box.setIcon(QMessageBox.Information)
+        QTimer.singleShot(1500, msg_box.accept)
+        msg_box.exec_()
+
+    def check_finger_count(self):
+        if time.time() - self.finger_count_start_time > 10:
+            self.finger_count_timer.stop()
+            self.show_error_message("Error", "Time is up! Failed to show the correct number of fingers.")
+            self.stacked_widget.setCurrentIndex(0)
+            return False
+
+        ret, frame = self.video_capture.read()
+        if not ret:
+            print("Error: Could not read frame.")
+            return
+
+        results = self.hands.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        if results.multi_hand_landmarks:
+            for hand_landmarks in results.multi_hand_landmarks:
+                finger_count = self.count_fingers(hand_landmarks)
+                print(f"Detected {finger_count} fingers")
+                if finger_count == self.target_finger_count:
+                    if self.finger_recognition_start_time is None:
+                        self.finger_recognition_start_time = time.time()
+                    elif time.time() - self.finger_recognition_start_time >= 3:
+                        self.finger_count_timer.stop()
+                        print("Unlocked")
+                        self.show_unlocked_message()
+                        self.stacked_widget.setCurrentIndex(0)
+                        return True
+                else:
+                    self.finger_recognition_start_time = None
+
+    def count_fingers(self, hand_landmarks):
+        # Implement logic to count fingers based on hand landmarks
+        # Example logic:
+        finger_tips = [4, 8, 12, 16, 20]
+        finger_count = 0
+
+        for tip in finger_tips:
+            if hand_landmarks.landmark[tip].y < hand_landmarks.landmark[tip - 2].y:
+                finger_count += 1
+
+        return finger_count
+
+    def show_unlocked_message(self):
+        print("Showing unlocked message")  # Debugging line
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Unlocked")
+        msg_box.setText("Folders Unlocked")
+        msg_box.setIcon(QMessageBox.Information)
+        QTimer.singleShot(1500, msg_box.accept)
+        msg_box.exec_()
+
 
     def create_face_recognition_view(self):
-
         recognition_widget = QWidget()
         layout = QVBoxLayout()
         recognition_widget.setLayout(layout)
@@ -168,6 +288,57 @@ class MainWindow(QMainWindow):
         q_image = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format_RGB888)
 
         self.video_label.setPixmap(QPixmap.fromImage(q_image))
+        self.video_label.update()  # Ensure QLabel is updated
+
+    def create_gesture_authentication_view(self):
+        gesture_widget = QWidget()
+        layout = QVBoxLayout()
+        gesture_widget.setLayout(layout)
+
+        label = QLabel("Gesture Authentication")
+        label.setFont(QFont("Arial", 24))
+        label.setStyleSheet("color: white;")
+        layout.addWidget(label, alignment=Qt.AlignCenter)
+
+        self.gesture_video_label = QLabel("Gesture Authentication (Loading...)")
+        self.gesture_video_label.setFont(QFont("Arial", 20))
+        self.gesture_video_label.setStyleSheet("color: white;")
+        layout.addWidget(self.gesture_video_label, alignment=Qt.AlignCenter)
+
+        self.gesture_timer = QTimer()
+        self.gesture_timer.timeout.connect(self.update_gesture_frame)
+        self.gesture_timer.start(20)
+
+        back_button = QPushButton("Back to Home")
+        back_button.setFont(QFont("Arial", 18))
+        back_button.setStyleSheet(self.get_button_style())
+        back_button.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(0))
+        layout.addWidget(back_button, alignment=Qt.AlignCenter)
+
+        self.stacked_widget.addWidget(gesture_widget)
+
+    def update_gesture_frame(self):
+        ret, frame = self.video_capture.read()
+        if not ret:
+            print("Error: Could not read frame.")
+            return
+
+        results = self.hands.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        if results.multi_hand_landmarks:
+            for hand_landmarks in results.multi_hand_landmarks:
+                self.mp_drawing.draw_landmarks(frame, hand_landmarks, self.mp_hands.HAND_CONNECTIONS)
+
+        rgb_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        h, w, ch = rgb_image.shape
+        bytes_per_line = ch * w
+        q_image = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format_RGB888)
+
+        self.gesture_video_label.setPixmap(QPixmap.fromImage(q_image))
+        self.gesture_video_label.update()  # Ensure QLabel is updated
+
+    def block_function(self):
+        # Placeholder for block functionality
+        pass
 
     def closeEvent(self, event):
         self.video_capture.release()
