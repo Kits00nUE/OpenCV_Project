@@ -173,8 +173,6 @@ class MainWindow(QMainWindow):
         # Ustawienie nowego obrazu na QLabel, który wyświetla obraz z kamery
         self.video_label.setPixmap(QPixmap.fromImage(q_image))
 
-
-
     def start_finger_counting(self):
         self.finger_count_timer = QTimer()
         self.finger_count_timer.timeout.connect(self.check_finger_count)
@@ -215,15 +213,13 @@ class MainWindow(QMainWindow):
                     elif time.time() - self.finger_recognition_start_time >= 3:
                         self.finger_count_timer.stop()
                         print("Unlocked")
-                        self.show_unlocked_message()
                         self.stacked_widget.setCurrentIndex(0)
+                        self.folders_unlocked()
                         return True
                 else:
                     self.finger_recognition_start_time = None
 
     def count_fingers(self, hand_landmarks):
-        # Implement logic to count fingers based on hand landmarks
-        # Example logic:
         finger_tips = [4, 8, 12, 16, 20]
         finger_count = 0
 
@@ -232,16 +228,6 @@ class MainWindow(QMainWindow):
                 finger_count += 1
 
         return finger_count
-
-    def show_unlocked_message(self):
-        print("Showing unlocked message")  # Debugging line
-        msg_box = QMessageBox(self)
-        msg_box.setWindowTitle("Unlocked")
-        msg_box.setText("Folders Unlocked")
-        msg_box.setIcon(QMessageBox.Information)
-        QTimer.singleShot(1500, msg_box.accept)
-        msg_box.exec_()
-
 
     def create_face_recognition_view(self):
         recognition_widget = QWidget()
@@ -369,6 +355,17 @@ class MainWindow(QMainWindow):
             border: 2px solid #1565C0; /* Border changes on press */
         }
         """
+
+    def show_unlocked_message(self):
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("Unlocked")
+        msg_box.setText("Folders Unlocked")
+        msg_box.setIcon(QMessageBox.Information)
+        QTimer.singleShot(15000, msg_box.accept)
+        msg_box.exec_()
+
+    def folders_unlocked(self):
+        self.show_unlocked_message()
 
     def create_access_files_view(self):
 
