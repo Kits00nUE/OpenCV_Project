@@ -1,5 +1,6 @@
 import sys
 import mediapipe as mp
+import face_recognition
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QPushButton, QLabel, QVBoxLayout, QWidget,
     QHBoxLayout, QStackedWidget, QFrame, QGridLayout, QLineEdit, QComboBox, QCheckBox
@@ -16,6 +17,7 @@ from PyQt5.QtCore import Qt
 import os
 import time
 import random
+import numpy as np
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -32,6 +34,17 @@ class MainWindow(QMainWindow):
         self.mp_drawing = mp.solutions.drawing_utils
 
         self.video_capture = cv2.VideoCapture(0)
+
+        # Sprawdź, czy plik z twarzą użytkownika już istnieje
+        self.face_folder = "face"
+        self.face_file = os.path.join(self.face_folder, "user_face.npy")
+        if os.path.exists(self.face_file):
+            self.reference_encoding = np.load(self.face_file)
+            print("Reference face encoding loaded.")
+            self.status = "blocked"
+        else:
+            self.status = "unblocked"
+            self.reference_encoding = None
 
     def initUI(self):
         main_layout = QVBoxLayout()
@@ -97,6 +110,13 @@ class MainWindow(QMainWindow):
         self.block_button.setIconSize(QSize(64, 64))
         special_button_layout.addWidget(self.block_button)
 
+        self.add_face_button = QPushButton("Add Face")
+        self.add_face_button.setFont(button_font)
+        self.add_face_button.setStyleSheet(self.get_button_style())
+        self.add_face_button.setIcon(QIcon("assets/faceid.png"))
+        self.add_face_button.setIconSize(QSize(64, 64))
+        special_button_layout.addWidget(self.add_face_button)
+
         home_layout.addLayout(special_button_layout)
 
         button_container = QGridLayout()
@@ -122,6 +142,7 @@ class MainWindow(QMainWindow):
 
         self.unlock_button.clicked.connect(self.start_unlock_process)
         self.block_button.clicked.connect(self.block_function)
+        self.add_face_button.clicked.connect(self.add_face)
         self.access_files_button.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(2))
         self.settings_button.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(3))
 
@@ -134,44 +155,44 @@ class MainWindow(QMainWindow):
         self.face_recognition_start_time = time.time()
 
     def check_face_recognition(self):
+        if self.reference_encoding is None:
+            print("No reference face encoding available.")
+            self.show_error_message("Error", "No reference face encoding available.")
+            return
+
         ret, frame = self.video_capture.read()
         if not ret:
             print("Error: Could not read frame.")
             return
 
-        gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        face_classifier = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
-        faces = face_classifier.detectMultiScale(gray_frame, scaleFactor=1.1, minNeighbors=5, minSize=(40, 40))
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        face_locations = face_recognition.face_locations(rgb_frame)
+        face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
 
-        if len(faces) > 0:
-            print(f"Detected {len(faces)} face(s).")
-
-            # Narysowanie prostokąta wokół każdej wykrytej twarzy
-            for (x, y, w, h) in faces:
-                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
-
-            # Sprawdzanie czasu detekcji twarzy
-            if time.time() - self.face_recognition_start_time >= 3:
-                print("Face recognized for 3 seconds")
-                self.face_timer.stop()
-
-                # Przejście do następnej części programu (liczenie palców)
-                self.stacked_widget.setCurrentIndex(4)
-                self.start_finger_counting()
+        for face_encoding in face_encodings:
+            matches = face_recognition.compare_faces([self.reference_encoding], face_encoding, tolerance=0.5)
+            if True in matches:
+                print("Face recognized")
+                if time.time() - self.face_recognition_start_time >= 3:
+                    print("Face recognized for 3 seconds")
+                    self.face_timer.stop()
+                    self.stacked_widget.setCurrentIndex(4)
+                    self.start_finger_counting()
+                    return
             else:
-                print(f"Face detected for {time.time() - self.face_recognition_start_time:.2f} seconds")
-        else:
-            print("No face detected. Resetting timer.")
-            self.face_recognition_start_time = time.time()
+                self.face_recognition_start_time = time.time()
 
         # Aktualizacja obrazu na ekranie
+        for (top, right, bottom, left) in face_locations:
+            cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 0), 2)
+
         rgb_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         h, w, ch = rgb_image.shape
         bytes_per_line = ch * w
         q_image = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format_RGB888)
 
-        # Ustawienie nowego obrazu na QLabel, który wyświetla obraz z kamery
         self.video_label.setPixmap(QPixmap.fromImage(q_image))
+        self.video_label.update()  # Ensure QLabel is updated
 
     def start_finger_counting(self):
         self.finger_count_timer = QTimer()
@@ -357,6 +378,7 @@ class MainWindow(QMainWindow):
         """
 
     def show_unlocked_message(self):
+        self.status = "unblocked"
         msg_box = QMessageBox(self)
         msg_box.setWindowTitle("Unlocked")
         msg_box.setText("Folders Unlocked")
@@ -364,8 +386,49 @@ class MainWindow(QMainWindow):
         QTimer.singleShot(15000, msg_box.accept)
         msg_box.exec_()
 
+    def add_face(self):
+        if self.status != "unblocked":
+            self.show_error_message("Error", "You must unlock the system before adding a new face.")
+            return
+
+        ret, frame = self.video_capture.read()
+        if not ret:
+            self.show_error_message("Error", "Could not read frame.")
+            return
+
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        face_locations = face_recognition.face_locations(rgb_frame)
+        if len(face_locations) == 0:
+            self.show_error_message("Error", "No face detected.")
+            return
+
+        face_encoding = face_recognition.face_encodings(rgb_frame, face_locations)[0]
+        self.reference_encoding = face_encoding
+
+        # Save the face encoding to a file
+        if not os.path.exists(self.face_folder):
+            os.makedirs(self.face_folder)
+        np.save(self.face_file, self.reference_encoding)
+
+        self.status = "unblocked"
+        self.show_confirmation_message("Success", "Face added successfully.")
+
     def folders_unlocked(self):
         self.show_unlocked_message()
+
+    def show_error_message(self, title, message):
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle(title)
+        msg_box.setText(message)
+        msg_box.setIcon(QMessageBox.Critical)
+        msg_box.exec_()
+
+    def show_confirmation_message(self, title, message):
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle(title)
+        msg_box.setText(message)
+        msg_box.setIcon(QMessageBox.Information)
+        msg_box.exec_()    
 
     def create_access_files_view(self):
 
@@ -452,9 +515,9 @@ class MainWindow(QMainWindow):
             print(f"User '{username}' added successfully.")
             self.show_confirmation_message(f"User '{username}' added successfully.")
 
-    def show_confirmation_message(self, message):
+    def show_confirmation_message(self, title, message):
         msg_box = QMessageBox(self)
-        msg_box.setWindowTitle("Action Completed")
+        msg_box.setWindowTitle(title)
         msg_box.setText(message)
         msg_box.setIcon(QMessageBox.Information)
         msg_box.exec_()
