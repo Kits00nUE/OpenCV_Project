@@ -221,11 +221,18 @@ class MainWindow(QMainWindow):
             print("Error: Could not read frame.")
             return
 
-        results = self.hands.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        frame = cv2.flip(frame, 1)  # Lustrzane odbicie, jeśli potrzebne do poprawnego działania
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        results = self.hands.process(rgb_frame)
+
         if results.multi_hand_landmarks:
             for hand_landmarks in results.multi_hand_landmarks:
+                self.mp_drawing.draw_landmarks(frame, hand_landmarks, self.mp_hands.HAND_CONNECTIONS)
+
+                # Liczenie palców
                 finger_count = self.count_fingers(hand_landmarks)
                 print(f"Detected {finger_count} fingers")
+
                 if finger_count == self.target_finger_count:
                     if self.finger_recognition_start_time is None:
                         self.finger_recognition_start_time = time.time()
@@ -240,27 +247,30 @@ class MainWindow(QMainWindow):
 
     def count_fingers(self, hand_landmarks):
         tips = [4, 8, 12, 16, 20]
-        finger_states = [False] * 5
+        finger_states = [False] * 5  # Stany: True jeśli palec jest wyprostowany
 
+        # Pozycje punktów odniesienia
         thumb_tip = hand_landmarks.landmark[tips[0]]
         thumb_ip = hand_landmarks.landmark[2]
         wrist = hand_landmarks.landmark[0]
 
-        if thumb_tip.x < wrist.x:
-            if thumb_tip.x < thumb_ip.x:
+        # Logika dla kciuka
+        if thumb_tip.x < wrist.x:  # Dłoń skierowana w lewo
+            if thumb_tip.x < thumb_ip.x:  # Kciuk wyprostowany w lewo
                 finger_states[0] = True
-        else:
-            if thumb_tip.x > thumb_ip.x:
+        else:  # Dłoń skierowana w prawo
+            if thumb_tip.x > thumb_ip.x:  # Kciuk wyprostowany w prawo
                 finger_states[0] = True
 
-
+        # Logika dla pozostałych palców
         for i in range(1, 5):
             finger_tip = hand_landmarks.landmark[tips[i]]
             finger_dip = hand_landmarks.landmark[tips[i] - 2]
-
+            # Sprawdzenie, czy końcówka palca jest powyżej środkowego stawu
             if finger_tip.y < finger_dip.y:
                 finger_states[i] = True
 
+        # Liczenie wyprostowanych palców
         finger_count = sum(finger_states)
         return finger_count
 
