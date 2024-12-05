@@ -1,10 +1,8 @@
 import sys
 import mediapipe as mp
 import face_recognition
-from PyQt5.QtWidgets import (
-    QApplication, QMainWindow, QPushButton, QLabel, QVBoxLayout, QWidget,
-    QHBoxLayout, QStackedWidget, QFrame, QGridLayout, QLineEdit, QComboBox, QCheckBox
-)
+from PyQt5.QtWidgets import (QApplication, QMainWindow, QPushButton, QLabel, QVBoxLayout, QWidget,
+    QHBoxLayout, QStackedWidget, QFrame, QGridLayout, QLineEdit, QComboBox, QCheckBox)
 from PyQt5.QtCore import Qt, QSize  # Include QSize here
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QPushButton, QStackedWidget
 
@@ -241,13 +239,29 @@ class MainWindow(QMainWindow):
                     self.finger_recognition_start_time = None
 
     def count_fingers(self, hand_landmarks):
-        finger_tips = [4, 8, 12, 16, 20]
-        finger_count = 0
+        tips = [4, 8, 12, 16, 20]
+        finger_states = [False] * 5
 
-        for tip in finger_tips:
-            if hand_landmarks.landmark[tip].y < hand_landmarks.landmark[tip - 2].y:
-                finger_count += 1
+        thumb_tip = hand_landmarks.landmark[tips[0]]
+        thumb_ip = hand_landmarks.landmark[2]
+        wrist = hand_landmarks.landmark[0]
 
+        if thumb_tip.x < wrist.x:
+            if thumb_tip.x < thumb_ip.x:
+                finger_states[0] = True
+        else:
+            if thumb_tip.x > thumb_ip.x:
+                finger_states[0] = True
+
+
+        for i in range(1, 5):
+            finger_tip = hand_landmarks.landmark[tips[i]]
+            finger_dip = hand_landmarks.landmark[tips[i] - 2]
+
+            if finger_tip.y < finger_dip.y:
+                finger_states[i] = True
+
+        finger_count = sum(finger_states)
         return finger_count
 
     def create_face_recognition_view(self):
