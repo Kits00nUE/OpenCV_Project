@@ -16,8 +16,13 @@ import os
 import time
 import random
 import numpy as np
+import base64
+from Cryptodome.Cipher import AES
+from Cryptodome.Util.Padding import pad, unpad
+
 
 class MainWindow(QMainWindow):
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Access Control Application")
@@ -43,6 +48,8 @@ class MainWindow(QMainWindow):
         else:
             self.status = "unblocked"
             self.reference_encoding = None
+
+        self.blocked_files = []  # Lista do przechowywania ścieżek plików do zablokowania
 
     def initUI(self):
         main_layout = QVBoxLayout()
@@ -180,6 +187,80 @@ class MainWindow(QMainWindow):
             else:
                 self.face_recognition_start_time = time.time()
 
+        # Update the image on the screen
+        for (top, right, bottom, left) in face_locations:
+            cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 0), 2)
+
+        rgb_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        h, w, ch = rgb_image.shape
+        bytes_per_line = ch * w
+        q_image = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format_RGB888)
+
+        self.video_label.setPixmap(QPixmap.fromImage(q_image))
+        self.video_label.update()  # Ensure QLabel is updated
+
+    def decrypt_files(self):
+        key = b'Sixteen byte key'  # Klucz AES (musi mieć długość 16, 24 lub 32 bajtów)
+
+        for file_path in self.blocked_files:
+            try:
+                with open(file_path, 'rb') as file:
+                    iv = file.read(16)  # Odczytaj IV z początku pliku
+                    encrypted_data = file.read()
+
+                cipher = AES.new(key, AES.MODE_CBC, iv)
+                decrypted_data = unpad(cipher.decrypt(encrypted_data), AES.block_size)
+
+                with open(file_path, 'wb') as file:
+                    file.write(decrypted_data)
+
+                print(f"File {file_path} has been decrypted.")
+            except Exception as e:
+                print(f"Error decrypting file {file_path}: {e}")
+                self.show_error_message("Error", f"Error decrypting file {file_path}: {e}")
+
+        self.show_confirmation_message("Success", "All files have been decrypted.")
+
+    def check_face_recognition(self):
+        if self.reference_encoding is None:
+            print("No reference face encoding available.")
+            self.show_error_message("Error", "No reference face encoding available.")
+            return
+
+        ret, frame = self.video_capture.read()
+        if not ret:
+            print("Error: Could not read frame.")
+            return
+
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        face_locations = face_recognition.face_locations(rgb_frame)
+        face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
+
+        for face_encoding in face_encodings:
+            matches = face_recognition.compare_faces([self.reference_encoding], face_encoding, tolerance=0.5)
+            if True in matches:
+                print("Face recognized")
+                if time.time() - self.face_recognition_start_time >= 3:
+                    print("Face recognized for 3 seconds")
+                    self.face_timer.stop()
+                    self.stacked_widget.setCurrentIndex(4)
+                    self.start_finger_counting()
+                    return
+            else:
+                self.face_recognition_start_time = time.time()
+
+        # Aktualizacja obrazu na ekranie
+        for (top, right, bottom, left) in face_locations:
+            cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 0), 2)
+
+        rgb_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        h, w, ch = rgb_image.shape
+        bytes_per_line = ch * w
+        q_image = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format_RGB888)
+
+        self.video_label.setPixmap(QPixmap.fromImage(q_image))
+        self.video_label.update()  # Upewnij się, że QLabel jest zaktualizowany
+
         # Aktualizacja obrazu na ekranie
         for (top, right, bottom, left) in face_locations:
             cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 0), 2)
@@ -241,9 +322,19 @@ class MainWindow(QMainWindow):
                         print("Unlocked")
                         self.stacked_widget.setCurrentIndex(0)
                         self.folders_unlocked()
+                        self.decrypt_files()  # Wywołaj metodę decrypt_files tutaj
                         return True
                 else:
                     self.finger_recognition_start_time = None
+
+        # Aktualizacja obrazu na ekranie
+        rgb_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        h, w, ch = rgb_image.shape
+        bytes_per_line = ch * w
+        q_image = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format_RGB888)
+
+        self.video_label.setPixmap(QPixmap.fromImage(q_image))
+        self.video_label.update()  # Upewnij się, że QLabel jest zaktualizowany
 
     def count_fingers(self, hand_landmarks):
         tips = [4, 8, 12, 16, 20]
@@ -368,8 +459,30 @@ class MainWindow(QMainWindow):
         self.gesture_video_label.update()  # Ensure QLabel is updated
 
     def block_function(self):
-        # Placeholder for block functionality
-        pass
+        if not self.blocked_files:
+            self.show_error_message("Error", "No files to block.")
+            return
+
+        key = b'Sixteen byte key'  # Klucz AES (musi mieć długość 16, 24 lub 32 bajtów)
+        cipher = AES.new(key, AES.MODE_CBC)
+
+        for file_path in self.blocked_files:
+            try:
+                with open(file_path, 'rb') as file:
+                    file_data = file.read()
+
+                iv = cipher.iv
+                encrypted_data = cipher.encrypt(pad(file_data, AES.block_size))
+
+                with open(file_path, 'wb') as file:
+                    file.write(iv + encrypted_data)
+
+                print(f"File {file_path} has been encrypted.")
+            except Exception as e:
+                print(f"Error encrypting file {file_path}: {e}")
+                self.show_error_message("Error", f"Error encrypting file {file_path}: {e}")
+
+        self.show_confirmation_message("Success", "All files have been encrypted.")
 
     def closeEvent(self, event):
         self.video_capture.release()
@@ -452,7 +565,7 @@ class MainWindow(QMainWindow):
         msg_box.setWindowTitle(title)
         msg_box.setText(message)
         msg_box.setIcon(QMessageBox.Information)
-        msg_box.exec_()    
+        msg_box.exec_()
 
     def create_access_files_view(self):
 
@@ -527,11 +640,18 @@ class MainWindow(QMainWindow):
         self.show_confirmation_message(f"The file '{file_path}' is now opened.")
 
     def block_file_function(self):
-        confirmation = QMessageBox.question(self, "Block File", "Are you sure you want to block this file?",
+        file_path = self.selected_file_label.text().replace("Selected File: ", "")
+        if file_path == "No file selected":
+            self.show_error_message("Error", "No file has been selected.")
+            return
+
+        confirmation = QMessageBox.question(self, "Block File",
+                                            f"Are you sure you want to block the file: {file_path}?",
                                             QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if confirmation == QMessageBox.Yes:
-            print("File blocked successfully.")
-            self.show_confirmation_message("The selected file has been blocked.")
+            self.blocked_files.append(file_path)
+            print(f"File {file_path} added to block list.")
+            self.show_confirmation_message("Success", f"The file '{file_path}' has been added to the block list.")
 
     def add_user_function(self):
         username, ok = QInputDialog.getText(self, "Add User", "Enter username:")
