@@ -57,6 +57,6 @@ This project implements a state-of-the-art access control system designed to pro
 
 ## Authors
 - [@GrzegorzDrozdz](https://github.com/GrzegorzDrozdz)
-- [@Taiq-UE](https://github.com/Taiq-UE*)
+- [@Taiq-UE](https://github.com/Taiq-UE)
 - [@Kits00nUE](https://github.com/Kits00nUE)
 
